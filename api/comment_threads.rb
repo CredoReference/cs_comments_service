@@ -27,9 +27,12 @@ get "#{APIPREFIX}/threads/:thread_id" do |thread_id|
     error 404, [t(:requested_object_not_found)].to_json
   end
 
-  if params["user_id"] and bool_mark_as_read
+  # user is required to return user-specific fields, such as "read" (even if bool_mark_as_read is False)
+  if params["user_id"]
     user = User.only([:id, :username, :read_states]).find_by(external_id: params["user_id"])
-    user.mark_as_read(thread) if user
+  end
+  if user and bool_mark_as_read
+    user.mark_as_read(thread)
   end
 
   presenter = ThreadPresenter.factory(thread, user || nil)
@@ -54,8 +57,9 @@ put "#{APIPREFIX}/threads/:thread_id" do |thread_id|
   filter_blocked_content params["body"]
   thread.update_attributes(params.slice(*%w[title body pinned closed commentable_id group_id thread_type]))
 
-  if params["user_id"] and value_to_boolean(params["read"])
-    user = User.only([:id, :username, :read_states]).find_by(external_id: params["user_id"])
+  # user_id is the owner for a thread, requested_user_id is the user requesting to update said thread
+  if params["requested_user_id"] and value_to_boolean(params["read"])
+    user = User.only([:id, :username, :read_states]).find_by(external_id: params["requested_user_id"])
     user.mark_as_read(thread) if user
   end
 
